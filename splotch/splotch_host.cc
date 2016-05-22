@@ -33,6 +33,7 @@
 #include "cxxsupport/string_utils.h"
 #include "cxxsupport/openmp_support.h"
 #include "splotch/new_renderer.h"
+#include "mpi.h"
 
 #define SPLOTCH_CLASSIC
 
@@ -49,6 +50,75 @@ const float32 rfac=0.75;
 #else
 const float32 rfac=1.;
 #endif
+
+struct mpi_particle{
+	float er, eg, eb;
+	float x, y, z, r, I;
+	unsigned short type, active;
+};
+
+struct mpi_particle b;
+
+MPI_Datatype myvar;
+MPI_Datatype old_types[2];
+MPI_Aint indices[2];
+int blocklens[2];
+
+void SetMPIDataType(){
+	blocklens[0] = 8;
+	blocklens[1] = 2;
+	//blocklens[2] = 1;
+	old_types[0] = MPI_FLOAT;
+	old_types[1] = MPI_UNSIGNED_SHORT;
+	//old_types[2] = MPI::BOOL;
+	MPI_Address(&b, &indices[0]);
+	MPI_Address(&b.type, &indices[1]);
+	//MPI_Address(&b.active, &indices[2]);
+	//indices[2] -= indices[1];
+	indices[1] -= indices[0];
+	indices[0] = 0;
+	MPI_Type_struct(2, blocklens, indices, old_types, &myvar);
+	MPI_Type_commit(&myvar);
+}
+
+void SendParticle(vector<particle_sim> &p, int num, int rank, int tag){
+	SetMPIDataType();
+	struct mpi_particle *pp = new mpi_particle[num];
+	for (int i = 0; i < num; ++i){
+		pp[i].er = p[i].e.r;
+		pp[i].eg = p[i].e.g;
+		pp[i].eb = p[i].e.b;
+		pp[i].x = p[i].x;
+		pp[i].y = p[i].y;
+		pp[i].z = p[i].z;
+		pp[i].r = p[i].r;
+		pp[i].I = p[i].I;
+		pp[i].type = p[i].type;
+		if (p[i].active) pp[i].active = 1; else pp[i].active = 0;
+	}		
+	MPI_Send(pp, num, myvar, rank, tag, MPI_COMM_WORLD);
+	delete[] pp;	
+}
+
+void RecvParticle(vector<particle_sim> &p, int num, int rank, int tag){
+	SetMPIDataType();
+	struct mpi_particle *pp = new mpi_particle[num];
+	MPI_Recv(pp, num, myvar, rank, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	for (int i = 0; i < num; ++i){
+		p[i].e.r = pp[i].er;
+		p[i].e.g = pp[i].eg;
+		p[i].e.b = pp[i].eb;
+		p[i].x = pp[i].x;
+		p[i].y = pp[i].y;
+		p[i].z = pp[i].z;
+		p[i].r = pp[i].r;
+		p[i].I = pp[i].I;
+		p[i].type = pp[i].type;
+		p[i].active = p[i].active;
+	}
+	delete[] pp;
+	cout << "finish recv\n";
+}
 
 void particle_project(paramfile &params, vector<particle_sim> &p,
   const vec3 &campos, const vec3 &lookat, vec3 sky, const vec3 &centerpos)
@@ -539,6 +609,12 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
   float32 grayabsorb = params.find<float32>("gray_absorption",0.2);
 
   tstack_push("Rendering");
+  if (mpiMgr.rank() == 0){
+	SendParticle(particles, 5, 1, 1);
+  }
+  if (mpiMgr.rank() == 1){
+	RecvParticle(particles, 5, 0, 1);
+  }
   render_new (&(particles[0]),particles.size(),pic,a_eq_e,grayabsorb);
   tstack_pop("Rendering");
   }
