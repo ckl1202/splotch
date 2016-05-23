@@ -320,7 +320,7 @@ void render_new (particle_sim *p, int npart, arr2<COLOUR> &pic,
   const float32 taylorlimit=xexp.taylorLimit();
 #endif
 
-  pic.fill(COLOUR(0,0,0));
+  //pic.fill(COLOUR(0,0,0));
 
   tstack_push("Host Chunk preparation");
 #pragma omp parallel
@@ -493,8 +493,11 @@ void render_new (particle_sim *p, int npart, arr2<COLOUR> &pic,
       for (int iy=0;iy<y1;iy++)
 #ifdef __SSE2__
         {
-        COLOUR &c(pic[ix+x0s][iy+y0s]); float32 dum;
+	COLOUR c;
+        //COLOUR &c(pic[ix+x0s][iy+y0s]); float32 dum;
+        float dum;
         lpic[ix][iy].writeTo(c.r,c.g,c.b,dum);
+	pic[ix+x0s][iy+y0s] += c;
         }
 #else
         pic[ix+x0s][iy+y0s]=lpic[ix][iy];
@@ -621,6 +624,7 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
 	particles.resize(nRank1Size + nRank0Size);
 	RecvParticle(&(particles[nRank1Size]), nRank0Size, 0, 1);
   }
+  pic.fill(COLOUR(0, 0, 0));
   if (mpiMgr.rank() > 0){
 	int now = 0, delta = 1000000;
 	while (now < particles.size()){
