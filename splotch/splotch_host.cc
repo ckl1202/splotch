@@ -609,13 +609,84 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
   float32 grayabsorb = params.find<float32>("gray_absorption",0.2);
 
   tstack_push("Rendering");
-  if (mpiMgr.rank() == 0){
-	SendParticle(particles, 5, 1, 1);
+  if (mpiMgr.rank() == 0)i{
+	int nSize = particles.size();
+	MPI_Send(&nSize, 0, MPI_INT, 1, 0, MPI_COMM_WORLD);
+	SendParticle(particles, particles.size(), 1, 1);
   }
   if (mpiMgr.rank() == 1){
-	RecvParticle(particles, 5, 0, 1);
+	int nRank0Size;
+	MPI_Recv(&nRank0Size, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	int nRank1Size = particles.size();
+	particles.resize(nRank1Size + nRank0Size);
+	RecvParticle(particles[nRank1Size], nRank0Size, 0, 1);
   }
-  render_new (&(particles[0]),particles.size(),pic,a_eq_e,grayabsorb);
+  if (mpiMgr.rank() > 0){
+	int now = 0, delta = 1000000;
+	while (now < particles.size()){
+		int num = delta;
+		if (now + num > particles.size()) num = particles.size() - now;
+		//render_new (&(particles[0]),particles.size(),pic,a_eq_e,grayabsorb);
+		render_new(&(particles[now]), num, pic, a_eq_e, grayabosorb);
+		now += num;
+		int finish = (now == particles.size()) ? 0 : 1;
+		//tell the master process whether I have finished. 
+		MPI_Send(&finish, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+		//for finished, otherRank equals to the rank to receive.
+		//for haven't finished, otherRank equals to the rank to send.
+		int otherRank;
+		MPI_Recv(&otherRank, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		if (finished == 1){//have not finished
+			if (otherRank != -1){//there is a free process
+				int left = particles.size() - now;
+				int numToSend = left / 2;
+				MPI_Send(&numToSend, 1, MPI_INT, otherRank, 2, MPI_COMM_WORLD);
+				SendParticle(particles[particles.size() - numToSend], numToSend, otherRank, 3, MPI_COMM_WORLD);
+				particles.resize(particles.size() - numToSend);
+		
+			}
+		}
+		if (finished == 0){//have finished
+			if (otherRank != 0){// otherRank == 0 means all processes have done works.
+				int numToRecv;
+				MPI_Recv(&numToRecv, 1, MPI_INT, otherRank, 2, MPI_COMM_WORLD);
+				particles.resize(numToRecv);
+				RecvParticle(particles, numToRecv, otherRank, 3);
+				now = 0;	
+			}
+		}	
+	}
+  }
+  else{// this is the master process
+  	vector<int> freeProcessList;
+	int nCommSize;
+	MPI_Comm_Size(MPI_COMM_WORLD, &nCommSize);
+	while (freeProcessList.size() < nCommSize - 1){
+   		MPI_Status status;
+		int finished;
+		MPI_Recv(&finished, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+		if (finished == 0){// this process have finished
+			freeProcessList.push_back(status.MPI_SOURCE);
+		}
+		else{// this process have not finished
+			if (freeProcessList.empty()){// there is no free process.
+				int n = -1;
+				MPI_Send(&n, 1, MPI_INT, status.MPI_SOURCE, MPI_COMM_WORLD);
+			}
+			else{
+				int aFreeProcess = freeProcessList[freeProceeList.size() - 1];
+				freeProcessList.pop_back();
+				MPI_Send(&status.MPI_SOURCE, 1, MPI_INT, aFreeProcess, 1, MPI_COMM_WORLD);
+				MPI_Send(&aFreeProcess, 1, MPI_INT, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
+			}
+		}
+	}
+	int nZero = 0;
+	for (int i = 1; i < nCommSize; ++i){
+		MPI_Send(&nZero, 1, MPI_INT, i, 1, MPI_COMM_WORLD);
+	}
+  }
+		
   tstack_pop("Rendering");
   }
 
