@@ -81,7 +81,7 @@ void SetMPIDataType(){
 	MPI_Type_commit(&myvar);
 }
 
-void SendParticle(vector<particle_sim> &p, int num, int rank, int tag){
+void SendParticle(particle_sim *p, int num, int rank, int tag){
 	SetMPIDataType();
 	struct mpi_particle *pp = new mpi_particle[num];
 	for (int i = 0; i < num; ++i){
@@ -100,7 +100,7 @@ void SendParticle(vector<particle_sim> &p, int num, int rank, int tag){
 	delete[] pp;	
 }
 
-void RecvParticle(vector<particle_sim> &p, int num, int rank, int tag){
+void RecvParticle(particle_sim *p, int num, int rank, int tag){
 	SetMPIDataType();
 	struct mpi_particle *pp = new mpi_particle[num];
 	MPI_Recv(pp, num, myvar, rank, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -254,7 +254,7 @@ void particle_colorize(paramfile &params, vector<particle_sim> &p,
     {
     if (p[m].active)
       {
-      if (!col_vector[p[m].type])
+if (!col_vector[p[m].type])
         p[m].e=amap[p[m].type].getVal_const(p[m].e.r);
 
       p[m].e *= p[m].I * brightness[p[m].type];
@@ -609,17 +609,17 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
   float32 grayabsorb = params.find<float32>("gray_absorption",0.2);
 
   tstack_push("Rendering");
-  if (mpiMgr.rank() == 0)i{
+  if (mpiMgr.rank() == 0){
 	int nSize = particles.size();
 	MPI_Send(&nSize, 0, MPI_INT, 1, 0, MPI_COMM_WORLD);
-	SendParticle(particles, particles.size(), 1, 1);
+	SendParticle(&(particles[0]), particles.size(), 1, 1);
   }
   if (mpiMgr.rank() == 1){
 	int nRank0Size;
 	MPI_Recv(&nRank0Size, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	int nRank1Size = particles.size();
 	particles.resize(nRank1Size + nRank0Size);
-	RecvParticle(particles[nRank1Size], nRank0Size, 0, 1);
+	RecvParticle(&(particles[nRank1Size]), nRank0Size, 0, 1);
   }
   if (mpiMgr.rank() > 0){
 	int now = 0, delta = 1000000;
@@ -627,7 +627,7 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
 		int num = delta;
 		if (now + num > particles.size()) num = particles.size() - now;
 		//render_new (&(particles[0]),particles.size(),pic,a_eq_e,grayabsorb);
-		render_new(&(particles[now]), num, pic, a_eq_e, grayabosorb);
+		render_new(&(particles[now]), num, pic, a_eq_e, grayabsorb);
 		now += num;
 		int finish = (now == particles.size()) ? 0 : 1;
 		//tell the master process whether I have finished. 
@@ -636,22 +636,22 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
 		//for haven't finished, otherRank equals to the rank to send.
 		int otherRank;
 		MPI_Recv(&otherRank, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		if (finished == 1){//have not finished
+		if (finish == 1){//have not finished
 			if (otherRank != -1){//there is a free process
 				int left = particles.size() - now;
 				int numToSend = left / 2;
 				MPI_Send(&numToSend, 1, MPI_INT, otherRank, 2, MPI_COMM_WORLD);
-				SendParticle(particles[particles.size() - numToSend], numToSend, otherRank, 3, MPI_COMM_WORLD);
+				SendParticle(&(particles[particles.size() - numToSend]), numToSend, otherRank, 3);
 				particles.resize(particles.size() - numToSend);
 		
 			}
 		}
-		if (finished == 0){//have finished
+		if (finish == 0){//have finished
 			if (otherRank != 0){// otherRank == 0 means all processes have done works.
 				int numToRecv;
-				MPI_Recv(&numToRecv, 1, MPI_INT, otherRank, 2, MPI_COMM_WORLD);
+				MPI_Recv(&numToRecv, 1, MPI_INT, otherRank, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 				particles.resize(numToRecv);
-				RecvParticle(particles, numToRecv, otherRank, 3);
+				RecvParticle(&(particles[0]), numToRecv, otherRank, 3);
 				now = 0;	
 			}
 		}	
@@ -660,7 +660,7 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
   else{// this is the master process
   	vector<int> freeProcessList;
 	int nCommSize;
-	MPI_Comm_Size(MPI_COMM_WORLD, &nCommSize);
+	MPI_Comm_size(MPI_COMM_WORLD, &nCommSize);
 	while (freeProcessList.size() < nCommSize - 1){
    		MPI_Status status;
 		int finished;
@@ -671,10 +671,10 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
 		else{// this process have not finished
 			if (freeProcessList.empty()){// there is no free process.
 				int n = -1;
-				MPI_Send(&n, 1, MPI_INT, status.MPI_SOURCE, MPI_COMM_WORLD);
+				MPI_Send(&n, 1, MPI_INT, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
 			}
 			else{
-				int aFreeProcess = freeProcessList[freeProceeList.size() - 1];
+				int aFreeProcess = freeProcessList[freeProcessList.size() - 1];
 				freeProcessList.pop_back();
 				MPI_Send(&status.MPI_SOURCE, 1, MPI_INT, aFreeProcess, 1, MPI_COMM_WORLD);
 				MPI_Send(&aFreeProcess, 1, MPI_INT, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
