@@ -667,8 +667,8 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
 	int nCommSize;
 	MPI_Comm_size(MPI_COMM_WORLD, &nCommSize);
 	while (freeProcessList.size() < nCommSize - 1){
-		cout << freeProcessList.size() << endl;
-		for (int i = 0; i < freeProcessList.size(); ++i) cout << freeProcessList[i] << ' ';
+		//cout << freeProcessList.size() << endl;
+		//for (int i = 0; i < freeProcessList.size(); ++i) cout << freeProcessList[i] << ' ';
    		MPI_Status status;
 		int finished;
 		MPI_Recv(&finished, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
