@@ -96,5 +96,5 @@ sort_type=1
 swap_endian=F
 time=0.6801823040103018
 use_host_as_thread=t
-xres=8192
-yres=8192
+xres=4096
+yres=4096

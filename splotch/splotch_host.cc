@@ -117,7 +117,7 @@ void RecvParticle(particle_sim *p, int num, int rank, int tag){
 		p[i].active = p[i].active;
 	}
 	delete[] pp;
-	cout << "finish recv\n";
+	//cout << "finish recv\n";
 }
 
 void particle_project(paramfile &params, vector<particle_sim> &p,
@@ -504,7 +504,6 @@ void render_new (particle_sim *p, int npart, arr2<COLOUR> &pic,
 #endif
     } // for this chunk
 } // #pragma omp parallel
-
   tstack_pop("Host Rendering proper");
   }
 
@@ -614,12 +613,14 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
   tstack_push("Rendering");
   if (mpiMgr.rank() == 0){
 	int nSize = particles.size();
-	MPI_Send(&nSize, 0, MPI_INT, 1, 0, MPI_COMM_WORLD);
+	cout << "Rank 0 : " << nSize << endl;
+	MPI_Send(&nSize, 1, MPI_INT, 1, 5, MPI_COMM_WORLD);
 	SendParticle(&(particles[0]), particles.size(), 1, 1);
   }
   if (mpiMgr.rank() == 1){
 	int nRank0Size;
-	MPI_Recv(&nRank0Size, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	MPI_Recv(&nRank0Size, 1, MPI_INT, 0, 5, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	cout << "Rank 1 : " << nRank0Size << endl;
 	int nRank1Size = particles.size();
 	particles.resize(nRank1Size + nRank0Size);
 	RecvParticle(&(particles[nRank1Size]), nRank0Size, 0, 1);
@@ -666,6 +667,8 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
 	int nCommSize;
 	MPI_Comm_size(MPI_COMM_WORLD, &nCommSize);
 	while (freeProcessList.size() < nCommSize - 1){
+		cout << freeProcessList.size() << endl;
+		for (int i = 0; i < freeProcessList.size(); ++i) cout << freeProcessList[i] << ' ';
    		MPI_Status status;
 		int finished;
 		MPI_Recv(&finished, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
