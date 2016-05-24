@@ -17,7 +17,7 @@ OPT += -DLONGIDS
 
 #--------------------------------------- Switch on MPI
 OPT += -DUSE_MPI
-#OPT += -DUSE_MPIIO
+OPT += -DUSE_MPIIO
 
 #--------------------------------------- CUDA options
 #OPT += -DCUDA
@@ -40,9 +40,9 @@ OPT += -DUSE_MPI
 #OPT += -DVS
 
 #--------------------------------------- Select target Computer
-SYSTYPE="generic"
+#SYSTYPE="generic"
 #SYSTYPE="mac"
-#SYSTYPE="Linux-cluster"
+SYSTYPE="Linux-cluster"
 #SYSTYPE="DAINT"
 #SYSTYPE="GSTAR"
 #SYSTYPE="SuperMuc"
@@ -59,9 +59,9 @@ SYSTYPE="generic"
 
 # Set compiler executables to commonly used names, may be altered below!
 ifeq (USE_MPI,$(findstring USE_MPI,$(OPT)))
- CC       = mpic++
+ CC       = /usr/mpi/gcc/openmpi-1.10.3a1/bin/mpic++ -Wl,-rpath=/usr/local/lib64/ -I/usr/mpi/gcc/openmpi-1.10.3a1/include -Wl,-rpath=/usr/mpi/gcc/openmpi-1.10.3a1/lib64
 else
- CC       = g++
+ CC       = g++ -Wl,-rpath=/usr/local/lib64/
 endif
 
 # OpenMP compiler switch
@@ -70,7 +70,8 @@ OMP      = -fopenmp
 SUP_INCL = -I. -Icxxsupport -Ic_utils -Ivectorclass
 
 # optimization and warning flags (g++)
-OPTIMIZE =  -pedantic -Wno-long-long -Wfatal-errors -Wextra -Wall -Wstrict-aliasing=2 -Wundef -Wshadow -Wwrite-strings -Wredundant-decls -Woverloaded-virtual -Wcast-qual -Wcast-align -Wpointer-arith -std=c++11 -march=native
+OPTIMIZE =  -pedantic -Wno-long-long -Wfatal-errors -Wextra -Wall -Wstrict-aliasing=2 -Wundef -Wshadow -Wwrite-strings -Wredundant-decls -Woverloaded-virtual -Wcast-qual -Wcast-align -Wpointer-arith -std=c++11
+
 #-Wno-newline-eof -g
 #-Wold-style-cast -std=c++11
 
@@ -135,9 +136,9 @@ endif
 
 ifeq ($(SYSTYPE),"Linux-cluster")
   ifeq (USE_MPI,$(findstring USE_MPI,$(OPT)))
-   CC  =  mpiCC -g
+   #CC  =  mpiCC -g
   else
-   CC  = g++
+   #CC  = g++
   endif
   OPTIMIZE += -O2 
   OMP = -fopenmp
