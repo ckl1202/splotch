@@ -114,7 +114,7 @@ void RecvParticle(particle_sim *p, int num, int rank, int tag){
 		p[i].r = pp[i].r;
 		p[i].I = pp[i].I;
 		p[i].type = pp[i].type;
-		p[i].active = p[i].active;
+		p[i].active = pp[i].active;
 	}
 	delete[] pp;
 	//cout << "finish recv\n";
