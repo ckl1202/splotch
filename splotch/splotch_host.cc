@@ -522,8 +522,45 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
       amap, b_brightness, npart_all);
     return;
     }
-
   bool master = mpiMgr.master();
+  if (master) cout << "begin swap" << endl;
+  int sendtimes = 5;
+  int round = 50;
+  int nums = 200000;
+  int pa[5][8] = {
+        {1, 0, 3, 2, 5, 4, 7, 6},
+        {2, 3, 0, 1, 6, 7, 4, 5},
+        {4, 5, 6, 7, 0, 1, 2, 3},
+        {2, 3, 0, 1, 6, 7, 4, 5},
+        {1, 0, 3, 2, 5, 4, 7, 6}};
+  int first[5][8] = {
+        {1, 0, 1, 0, 1, 0, 1, 0},
+        {1, 1, 0, 0, 1, 1, 0, 0},
+        {1, 1, 1, 1, 0, 0, 0, 0},
+        {1, 1, 0, 0, 1, 1, 0, 0},
+        {1, 0, 1, 0, 1, 0, 1, 0}};
+  vector<particle_sim> temp;
+  temp.resize(nums);
+
+  for (int i = 0; i < sendtimes; ++i){
+        int other = pa[i][mpiMgr.rank()];
+        int fir = first[i][mpiMgr.rank()];
+        for (int j = 0; j < round; ++j){
+                int pos = rand() % (particles.size() - nums);
+                if (fir == 1){
+                        SendParticle(&(particles[pos]), nums, other, 1);
+                        RecvParticle(&(particles[pos]), nums, other, 2);
+                }
+                else{
+                        temp.assign(particles.begin() + pos, particles.begin() + pos + nums);
+                        RecvParticle(&(particles[pos]), nums, other, 1);
+                        SendParticle(&(temp[0]), nums, other, 2);
+                }
+        }
+  }
+  if (master) cout << "end swap" << endl;
+
+  //bool master = mpiMgr.master();
   tsize npart = particles.size();
   //tsize npart_all = npart;
   //mpiMgr.allreduce (npart_all,MPI_Manager::Sum);
@@ -609,8 +646,9 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
 
   bool a_eq_e = params.find<bool>("a_eq_e",true);
   float32 grayabsorb = params.find<float32>("gray_absorption",0.2);
-
+ 
   tstack_push("Rendering");
+  render_new( &(particles[0]), particles.size(), pic, a_eq_e, grayabsorb);/*
   if (mpiMgr.rank() == 0){
 	int nSize = particles.size();
 	cout << "Rank 0 : " << nSize << endl;
@@ -652,47 +690,7 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
 			}
 		}
 		if (finish == 0){//have finished
-			if (otherRank != 0){// otherRank == 0 means all processes have done works.
-				int numToRecv;
-				MPI_Recv(&numToRecv, 1, MPI_INT, otherRank, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-				particles.resize(numToRecv);
-				RecvParticle(&(particles[0]), numToRecv, otherRank, 3);
-				now = 0;	
-			}
-		}	
-	}
-  }
-  else{// this is the master process
-  	vector<int> freeProcessList;
-	int nCommSize;
-	MPI_Comm_size(MPI_COMM_WORLD, &nCommSize);
-	while (freeProcessList.size() < nCommSize - 1){
-		//cout << freeProcessList.size() << endl;
-		//for (int i = 0; i < freeProcessList.size(); ++i) cout << freeProcessList[i] << ' ';
-   		MPI_Status status;
-		int finished;
-		MPI_Recv(&finished, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-		if (finished == 0){// this process have finished
-			freeProcessList.push_back(status.MPI_SOURCE);
-		}
-		else{// this process have not finished
-			if (freeProcessList.empty()){// there is no free process.
-				int n = -1;
-				MPI_Send(&n, 1, MPI_INT, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
-			}
-			else{
-				int aFreeProcess = freeProcessList[freeProcessList.size() - 1];
-				freeProcessList.pop_back();
-				MPI_Send(&status.MPI_SOURCE, 1, MPI_INT, aFreeProcess, 1, MPI_COMM_WORLD);
-				MPI_Send(&aFreeProcess, 1, MPI_INT, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
-			}
-		}
-	}
-	int nZero = 0;
-	for (int i = 1; i < nCommSize; ++i){
-		MPI_Send(&nZero, 1, MPI_INT, i, 1, MPI_COMM_WORLD);
-	}
-  }
+			if (otherRank != 0*/
 		
   tstack_pop("Rendering");
   }
