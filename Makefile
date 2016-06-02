@@ -59,7 +59,7 @@ SYSTYPE="Linux-cluster"
 
 # Set compiler executables to commonly used names, may be altered below!
 ifeq (USE_MPI,$(findstring USE_MPI,$(OPT)))
- CC       = /usr/mpi/gcc/openmpi-1.10.3a1/bin/mpic++ -Wl,-rpath=/usr/local/lib64/ -I/usr/mpi/gcc/openmpi-1.10.3a1/include -Wl,-rpath=/usr/mpi/gcc/openmpi-1.10.3a1/lib64
+ CC       = /usr/mpi/gcc/openmpi-1.10.3a1/bin/mpic++ -fopenmp -Wl,-rpath=/usr/local/lib64/ -I/usr/mpi/gcc/openmpi-1.10.3a1/include -Wl,-rpath=/usr/mpi/gcc/openmpi-1.10.3a1/lib64
 else
  CC       = g++ -Wl,-rpath=/usr/local/lib64/
 endif

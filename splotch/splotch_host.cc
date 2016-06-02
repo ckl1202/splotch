@@ -525,8 +525,8 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
   bool master = mpiMgr.master();
   if (master) cout << "begin swap" << endl;
   int sendtimes = 5;
-  int round = 50;
-  int nums = 200000;
+  int round = 100;
+  int nums = 500000;
   int pa[5][8] = {
         {1, 0, 3, 2, 5, 4, 7, 6},
         {2, 3, 0, 1, 6, 7, 4, 5},
