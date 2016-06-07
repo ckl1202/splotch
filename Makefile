@@ -72,7 +72,7 @@ SUP_INCL = -I. -Icxxsupport -Ic_utils -Ivectorclass
 
 # optimization and warning flags (g++)
 #OPTIMIZE =  -pedantic -Wno-long-long -Wfatal-errors -Wextra -Wall -Wstrict-aliasing=2 -Wundef -Wshadow -Wwrite-strings -Wredundant-decls -Woverloaded-virtual -Wcast-qual -Wcast-align -Wpointer-arith -std=c++11
-OPTIMIZE  = -O3 -std=c++11 -xHost
+OPTIMIZE  = -O3 -std=c++11
 
 #-Wno-newline-eof -g
 #-Wold-style-cast -std=c++11
