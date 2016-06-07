@@ -1,3 +1,5 @@
-export LD_LIBRARY_PATH=/usr/mpi/gcc/openmpi-1.10.3a1/lib64/:$LD_LIBRARY_PATH
-/usr/mpi/gcc/openmpi-1.10.3a1/bin/mpirun -np 28 ./Splotch6-Linux-cluster ../ckl/splotch-6.0/splotch_data/large/demo.par
+#export LD_LIBRARY_PATH=/usr/mpi/gcc/openmpi-1.10.3a1/lib64/:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/opt/intel/advisor_xe_2016.1.30.450722/lib64:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH
+mpirun -np 24 ./Splotch6-Linux-cluster ../ckl/splotch-6.0/splotch_data/large/demo.par
 
