@@ -1,3 +1,7 @@
 export LD_LIBRARY_PATH=/usr/mpi/gcc/openmpi-1.10.3a1/lib64/:$LD_LIBRARY_PATH
+<<<<<<< HEAD
 /usr/mpi/gcc/openmpi-1.10.3a1/bin/mpirun -np 28 ./Splotch6-Linux-cluster ../ckl/splotch-6.0/splotch_data/large/demo.par
+=======
+/usr/mpi/gcc/openmpi-1.10.3a1/bin/mpirun -np 8 ./Splotch6-Linux-cluster ../ckl/splotch-6.0/splotch_data/large/demo.par
+>>>>>>> 5d10592802d1d8822606714a67cf614ae8d30d9a
 

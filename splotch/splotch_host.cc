@@ -33,6 +33,7 @@
 #include "cxxsupport/string_utils.h"
 #include "cxxsupport/openmp_support.h"
 #include "splotch/new_renderer.h"
+#include "mpi.h"
 
 #define SPLOTCH_CLASSIC
 
@@ -49,6 +50,75 @@ const float32 rfac=0.75;
 #else
 const float32 rfac=1.;
 #endif
+
+struct mpi_particle{
+	float er, eg, eb;
+	float x, y, z, r, I;
+	unsigned short type, active;
+};
+
+struct mpi_particle b;
+
+MPI_Datatype myvar;
+MPI_Datatype old_types[2];
+MPI_Aint indices[2];
+int blocklens[2];
+
+void SetMPIDataType(){
+	blocklens[0] = 8;
+	blocklens[1] = 2;
+	//blocklens[2] = 1;
+	old_types[0] = MPI_FLOAT;
+	old_types[1] = MPI_UNSIGNED_SHORT;
+	//old_types[2] = MPI::BOOL;
+	MPI_Address(&b, &indices[0]);
+	MPI_Address(&b.type, &indices[1]);
+	//MPI_Address(&b.active, &indices[2]);
+	//indices[2] -= indices[1];
+	indices[1] -= indices[0];
+	indices[0] = 0;
+	MPI_Type_struct(2, blocklens, indices, old_types, &myvar);
+	MPI_Type_commit(&myvar);
+}
+
+void SendParticle(particle_sim *p, int num, int rank, int tag){
+	SetMPIDataType();
+	struct mpi_particle *pp = new mpi_particle[num];
+	for (int i = 0; i < num; ++i){
+		pp[i].er = p[i].e.r;
+		pp[i].eg = p[i].e.g;
+		pp[i].eb = p[i].e.b;
+		pp[i].x = p[i].x;
+		pp[i].y = p[i].y;
+		pp[i].z = p[i].z;
+		pp[i].r = p[i].r;
+		pp[i].I = p[i].I;
+		pp[i].type = p[i].type;
+		if (p[i].active) pp[i].active = 1; else pp[i].active = 0;
+	}		
+	MPI_Send(pp, num, myvar, rank, tag, MPI_COMM_WORLD);
+	delete[] pp;	
+}
+
+void RecvParticle(particle_sim *p, int num, int rank, int tag){
+	SetMPIDataType();
+	struct mpi_particle *pp = new mpi_particle[num];
+	MPI_Recv(pp, num, myvar, rank, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	for (int i = 0; i < num; ++i){
+		p[i].e.r = pp[i].er;
+		p[i].e.g = pp[i].eg;
+		p[i].e.b = pp[i].eb;
+		p[i].x = pp[i].x;
+		p[i].y = pp[i].y;
+		p[i].z = pp[i].z;
+		p[i].r = pp[i].r;
+		p[i].I = pp[i].I;
+		p[i].type = pp[i].type;
+		p[i].active = pp[i].active;
+	}
+	delete[] pp;
+	//cout << "finish recv\n";
+}
 
 void particle_project(paramfile &params, vector<particle_sim> &p,
   const vec3 &campos, const vec3 &lookat, vec3 sky, const vec3 &centerpos)
@@ -184,7 +254,7 @@ void particle_colorize(paramfile &params, vector<particle_sim> &p,
     {
     if (p[m].active)
       {
-      if (!col_vector[p[m].type])
+if (!col_vector[p[m].type])
         p[m].e=amap[p[m].type].getVal_const(p[m].e.r);
 
       p[m].e *= p[m].I * brightness[p[m].type];
@@ -250,7 +320,7 @@ void render_new (particle_sim *p, int npart, arr2<COLOUR> &pic,
   const float32 taylorlimit=xexp.taylorLimit();
 #endif
 
-  pic.fill(COLOUR(0,0,0));
+  //pic.fill(COLOUR(0,0,0));
 
   tstack_push("Host Chunk preparation");
 #pragma omp parallel
@@ -423,15 +493,17 @@ void render_new (particle_sim *p, int npart, arr2<COLOUR> &pic,
       for (int iy=0;iy<y1;iy++)
 #ifdef __SSE2__
         {
-        COLOUR &c(pic[ix+x0s][iy+y0s]); float32 dum;
+	COLOUR c;
+        //COLOUR &c(pic[ix+x0s][iy+y0s]); float32 dum;
+        float dum;
         lpic[ix][iy].writeTo(c.r,c.g,c.b,dum);
+	pic[ix+x0s][iy+y0s] += c;
         }
 #else
         pic[ix+x0s][iy+y0s]=lpic[ix][iy];
 #endif
     } // for this chunk
 } // #pragma omp parallel
-
   tstack_pop("Host Rendering proper");
   }
 
@@ -450,8 +522,45 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
       amap, b_brightness, npart_all);
     return;
     }
-
   bool master = mpiMgr.master();
+  if (master) cout << "begin swap" << endl;
+  int sendtimes = 5;
+  int round = 100;
+  int nums = 500000;
+  int pa[5][8] = {
+        {1, 0, 3, 2, 5, 4, 7, 6},
+        {2, 3, 0, 1, 6, 7, 4, 5},
+        {4, 5, 6, 7, 0, 1, 2, 3},
+        {2, 3, 0, 1, 6, 7, 4, 5},
+        {1, 0, 3, 2, 5, 4, 7, 6}};
+  int first[5][8] = {
+        {1, 0, 1, 0, 1, 0, 1, 0},
+        {1, 1, 0, 0, 1, 1, 0, 0},
+        {1, 1, 1, 1, 0, 0, 0, 0},
+        {1, 1, 0, 0, 1, 1, 0, 0},
+        {1, 0, 1, 0, 1, 0, 1, 0}};
+  vector<particle_sim> temp;
+  temp.resize(nums);
+
+  for (int i = 0; i < sendtimes; ++i){
+        int other = pa[i][mpiMgr.rank()];
+        int fir = first[i][mpiMgr.rank()];
+        for (int j = 0; j < round; ++j){
+                int pos = rand() % (particles.size() - nums);
+                if (fir == 1){
+                        SendParticle(&(particles[pos]), nums, other, 1);
+                        RecvParticle(&(particles[pos]), nums, other, 2);
+                }
+                else{
+                        temp.assign(particles.begin() + pos, particles.begin() + pos + nums);
+                        RecvParticle(&(particles[pos]), nums, other, 1);
+                        SendParticle(&(temp[0]), nums, other, 2);
+                }
+        }
+  }
+  if (master) cout << "end swap" << endl;
+
+  //bool master = mpiMgr.master();
   tsize npart = particles.size();
   //tsize npart_all = npart;
   //mpiMgr.allreduce (npart_all,MPI_Manager::Sum);
@@ -537,9 +646,52 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
 
   bool a_eq_e = params.find<bool>("a_eq_e",true);
   float32 grayabsorb = params.find<float32>("gray_absorption",0.2);
-
+ 
   tstack_push("Rendering");
-  render_new (&(particles[0]),particles.size(),pic,a_eq_e,grayabsorb);
+  render_new( &(particles[0]), particles.size(), pic, a_eq_e, grayabsorb);/*
+  if (mpiMgr.rank() == 0){
+	int nSize = particles.size();
+	cout << "Rank 0 : " << nSize << endl;
+	MPI_Send(&nSize, 1, MPI_INT, 1, 5, MPI_COMM_WORLD);
+	SendParticle(&(particles[0]), particles.size(), 1, 1);
+  }
+  if (mpiMgr.rank() == 1){
+	int nRank0Size;
+	MPI_Recv(&nRank0Size, 1, MPI_INT, 0, 5, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	cout << "Rank 1 : " << nRank0Size << endl;
+	int nRank1Size = particles.size();
+	particles.resize(nRank1Size + nRank0Size);
+	RecvParticle(&(particles[nRank1Size]), nRank0Size, 0, 1);
+  }
+  pic.fill(COLOUR(0, 0, 0));
+  if (mpiMgr.rank() > 0){
+	int now = 0, delta = 1000000;
+	while (now < particles.size()){
+		int num = delta;
+		if (now + num > particles.size()) num = particles.size() - now;
+		//render_new (&(particles[0]),particles.size(),pic,a_eq_e,grayabsorb);
+		render_new(&(particles[now]), num, pic, a_eq_e, grayabsorb);
+		now += num;
+		int finish = (now == particles.size()) ? 0 : 1;
+		//tell the master process whether I have finished. 
+		MPI_Send(&finish, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+		//for finished, otherRank equals to the rank to receive.
+		//for haven't finished, otherRank equals to the rank to send.
+		int otherRank;
+		MPI_Recv(&otherRank, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		if (finish == 1){//have not finished
+			if (otherRank != -1){//there is a free process
+				int left = particles.size() - now;
+				int numToSend = left / 2;
+				MPI_Send(&numToSend, 1, MPI_INT, otherRank, 2, MPI_COMM_WORLD);
+				SendParticle(&(particles[particles.size() - numToSend]), numToSend, otherRank, 3);
+				particles.resize(particles.size() - numToSend);
+		
+			}
+		}
+		if (finish == 0){//have finished
+			if (otherRank != 0*/
+		
   tstack_pop("Rendering");
   }
 

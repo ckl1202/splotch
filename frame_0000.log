@@ -33,7 +33,11 @@ colorbar=TRUE
 datadir=
 fidx=96
 fov=60
+<<<<<<< HEAD
 gray_absorption=0.0001
+=======
+gray_absorption=0.1
+>>>>>>> 5d10592802d1d8822606714a67cf614ae8d30d9a
 host_load=30
 hubble=0.704
 infile=snap_
@@ -70,7 +74,11 @@ pictype=0
 ptype0=0
 ptype1=4
 ptypes=2
+<<<<<<< HEAD
 readparallel=4
+=======
+readparallel=1
+>>>>>>> 5d10592802d1d8822606714a67cf614ae8d30d9a
 scene_file=
 simtype=2
 size_fac0=0.5
