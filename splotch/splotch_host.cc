@@ -84,6 +84,8 @@ void SetMPIDataType(){
 void SendParticle(particle_sim *p, int num, int rank, int tag){
 	SetMPIDataType();
 	struct mpi_particle *pp = new mpi_particle[num];
+#pragma omp parallel
+{
 	for (int i = 0; i < num; ++i){
 		pp[i].er = p[i].e.r;
 		pp[i].eg = p[i].e.g;
@@ -95,7 +97,8 @@ void SendParticle(particle_sim *p, int num, int rank, int tag){
 		pp[i].I = p[i].I;
 		pp[i].type = p[i].type;
 		if (p[i].active) pp[i].active = 1; else pp[i].active = 0;
-	}		
+	}
+}		
 	MPI_Send(pp, num, myvar, rank, tag, MPI_COMM_WORLD);
 	delete[] pp;	
 }
@@ -104,6 +107,8 @@ void RecvParticle(particle_sim *p, int num, int rank, int tag){
 	SetMPIDataType();
 	struct mpi_particle *pp = new mpi_particle[num];
 	MPI_Recv(pp, num, myvar, rank, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+#pragma omp parallel
+{
 	for (int i = 0; i < num; ++i){
 		p[i].e.r = pp[i].er;
 		p[i].e.g = pp[i].eg;
@@ -116,6 +121,7 @@ void RecvParticle(particle_sim *p, int num, int rank, int tag){
 		p[i].type = pp[i].type;
 		p[i].active = pp[i].active;
 	}
+}
 	delete[] pp;
 	//cout << "finish recv\n";
 }
@@ -523,7 +529,18 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
     return;
     }
   bool master = mpiMgr.master();
-  if (master) cout << "begin swap" << endl;
+
+  vector<particle_sim> newParticles;
+  for (int i = 0; i < mpiMgr.num_ranks(); ++i){
+ 	if (mpiMgr.rank() == i){
+		int nPoints = particles.size() / mpiMgr.num_ranks();
+		int nPos = 0;
+		for (int j = 0; j < mpiMgr.num_ranks(); ++j){
+			if (nPos + nPoints < 
+			if (i != j)
+	} 
+  }
+/*  if (master) cout << "begin swap" << endl;
   int sendtimes = 5;
   int round = 100;
   int nums = 500000;
@@ -559,7 +576,7 @@ void host_rendering (paramfile &params, vector<particle_sim> &particles,
         }
   }
   if (master) cout << "end swap" << endl;
-
+*/
   //bool master = mpiMgr.master();
   tsize npart = particles.size();
   //tsize npart_all = npart;
